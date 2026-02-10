@@ -3,29 +3,29 @@ import Nav from '../components/Nav';
 
 const teamMembers = [
   {
-    name: 'DR. Vijay',
+    name: 'Vijay Jangid',
     role: 'Project Lead & Lead Developer',
     bio: 'Leading the Bio Sentinel project with expertise in environmental monitoring and full-stack development.',
     linkedin: 'https://www.linkedin.com/in/vijay----jangid/',
-    image: '../assets/VIJAY.png'
+    image: '../assets/vijay.png'
   },
   {
     name: 'Preeti Yadav',
-    role: 'Student & Event Manager',
+    role: 'researcher and manager',
     bio: 'Active speaker | Host | Anchor | Event manager',
     linkedin: 'https://www.linkedin.com/in/preeti-yadav-097796301/',
-    image: 'https://unavatar.io/linkedin/preeti-yadav-097796301'
+    image: '../assets/preeti.png'
   },
   {
     name: 'Aayush Laddha',
     role: 'Full Stack Developer',
     bio: 'React, Node, LangChain | Building AI + IoT Systems | Intern @ Klyro Labs',
     linkedin: 'https://www.linkedin.com/in/imagiwaeve/',
-    image: 'https://unavatar.io/linkedin/imagiwaeve'
+    image: '../assets/aayush.png'
   },
   {
     name: 'Raghav Raj',
-    role: 'Mechware Engineer',
+    role: 'ux researcher and project manager',
     bio: 'CAD || UX/CX Researcher || Project Management || Product Management || NIT Delhi',
     linkedin: 'https://www.linkedin.com/in/raghav-raj-39kumar/',
     image: 'https://unavatar.io/linkedin/raghav-raj-39kumar'
@@ -38,8 +38,8 @@ const Team = () => {
       {/* Header */}
       <div className="flex items-center pt-6 justify-between">
         <div className="flex-1 flex flex-col items-center">
-          <h2 className="frosted-text text-lg font-bold tracking-tight">Team</h2>
-          <span className="text-[9px] uppercase tracking-[0.2em] text-neon-green font-bold">Bio Sentinel</span>
+          <h2 className="frosted-text text-lg font-bold tracking-tight">Kaya</h2>
+          <span className="text-[9px] uppercase tracking-[0.2em] text-neon-green font-bold">Our Team</span>
         </div>
       </div>
 

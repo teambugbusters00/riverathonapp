@@ -6,11 +6,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// NASA FIRMS API configuration
-const NASA_FIRMS_API_KEY = process.env.NASA_FIRMS_API_KEY || 'DEMO_KEY';
-const NASA_FIRMS_BASE_URL = 'https://firms.modaps.eosdis.nasa.gov/api/region';
+// GBIF API configuration
+const GBIF_BASE_URL = 'https://api.gbif.org/v1/occurrence/search';
 
-// File-based storage for alerts (Node.js compatible)
+// Endangered species list
+const ENDANGERED_SPECIES = new Set([
+    "Panthera tigris", "Panthera leo", "Panthera onca", "Snow Leopard",
+    "Elephas maximus", "Rhinoceros unicornis", "Gorilla beringei",
+    "Pongo abelii", "Ailuropoda melanoleuca", "Vultur gryphus",
+    "Aquila chrysaetos", "Crocodylus niloticus", "Python reticulatus"
+]);
+
+// File-based storage for alerts
 const ALERTS_FILE = path.join(__dirname, '../../data/alerts.json');
 
 // Ensure data directory exists
@@ -24,115 +31,156 @@ if (!fs.existsSync(ALERTS_FILE)) {
     fs.writeFileSync(ALERTS_FILE, JSON.stringify([]));
 }
 
-// Fetch fire data from NASA FIRMS
-export const fetchFireData = async (region = 'africa', days = 1) => {
+/**
+ * Fetch occurrences from GBIF
+ */
+export const fetchGBIFOccurrences = async (species, lat, lon, radius = 25, limit = 300) => {
     try {
-        const response = await axios.get(
-            `${NASA_FIRMS_BASE_URL}/${encodeURIComponent(region)}/VIIRS/1/${days}?key=${NASA_FIRMS_API_KEY}`
-        );
-        return response.data;
+        const params = {
+            scientificName: species,
+            decimalLatitude: lat,
+            decimalLongitude: lon,
+            radius: radius,
+            limit: limit
+        };
+        
+        const response = await axios.get(GBIF_BASE_URL, { params, timeout: 30000 });
+        return response.data.results || [];
     } catch (error) {
-        console.error('Error fetching NASA FIRMS data:', error.message);
-        return null;
+        console.error('GBIF API Error:', error.message);
+        return [];
     }
 };
 
-// Calculate risk level based on multiple signals
-export const calculateRiskLevel = (fireData, speciesData, citizenReports) => {
-    let riskScore = 0;
-    let factors = [];
-
-    // Fire analysis
-    if (fireData && fireData.hotspots) {
-        const hotspotCount = fireData.hotspots.length;
-        if (hotspotCount > 10) {
-            riskScore += 3;
-            factors.push('High wildfire activity');
-        } else if (hotspotCount > 5) {
-            riskScore += 2;
-            factors.push('Moderate wildfire activity');
-        } else if (hotspotCount > 0) {
-            riskScore += 1;
-            factors.push('Minor wildfire activity');
-        }
+/**
+ * Get historical average (older data)
+ */
+export const getHistoricalAverage = async (species, lat, lon, radius = 25) => {
+    try {
+        const toDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const params = {
+            scientificName: species,
+            decimalLatitude: lat,
+            decimalLongitude: lon,
+            radius: radius,
+            limit: 100,
+            toDate: toDate
+        };
+        
+        const response = await axios.get(GBIF_BASE_URL, { params, timeout: 30000 });
+        return response.data.results?.length || 4;
+    } catch (error) {
+        return 4;
     }
+};
 
-    // Species/growth analysis
-    if (speciesData && speciesData.species_growth) {
-        if (speciesData.species_growth >= 2) {
-            riskScore -= 2;
-            factors.push('Species population growth');
-        }
-    }
+/**
+ * Check if species is endangered
+ */
+export const isEndangered = (species) => {
+    return ENDANGERED_SPECIES.has(species);
+};
 
-    // Citizen reports analysis
-    if (citizenReports && citizenReports.count > 5) {
-        riskScore += 1;
-        factors.push('Multiple citizen reports');
-    }
+/**
+ * Calculate human proximity heuristic
+ */
+export const calculateHumanProximity = (lat, lon) => {
+    return 0.7; // Simplified - in production use settlement databases
+};
 
-    // Determine level
-    let level = 'Low';
-    let color = '#22ff88';
+/**
+ * GBIF-based Risk Scoring Algorithm
+ */
+export const calculateGBIFRiskScore = (recentCount, historicalAvg, endangered, humanProximity) => {
+    let score = 0;
+    const reasons = [];
+    const trendRatio = recentCount / Math.max(historicalAvg, 1);
     
-    if (riskScore >= 3) {
-        level = 'Critical';
-        color = '#ff2288';
-    } else if (riskScore >= 2) {
-        level = 'High';
-        color = '#FF007F';
-    } else if (riskScore >= 1) {
-        level = 'At Risk';
-        color = '#ffffff';
-    } else if (riskScore < 0) {
-        level = 'Positive';
-        color = '#39FF14';
+    // Endangered check
+    if (endangered) {
+        score += 1.5;
+        reasons.push("Endangered species detected");
     }
-
+    
+    // Trend analysis
+    if (trendRatio >= 3.0) {
+        score += 1.5;
+        reasons.push(`Major surge (${trendRatio.toFixed(1)}x average)`);
+    } else if (trendRatio >= 2.0) {
+        score += 1.2;
+        reasons.push(`Unusual increase (${trendRatio.toFixed(1)}x average)`);
+    } else if (trendRatio < 0.5) {
+        score += 1.0;
+        reasons.push(`Decline in sightings (${trendRatio.toFixed(1)}x average)`);
+    }
+    
+    // Human proximity
+    if (humanProximity >= 0.7) {
+        score += 0.8;
+        reasons.push("Near human areas");
+    } else if (humanProximity >= 0.4) {
+        score += 0.4;
+        reasons.push("Moderate proximity");
+    }
+    
+    // Determine risk level
+    let level = 'Positive';
+    if (score >= 3.0) level = 'Critical';
+    else if (score >= 2.0) level = 'High';
+    else if (score >= 1.0) level = 'At Risk';
+    
     return {
+        score: Math.round(score * 100) / 100,
         level,
-        color,
-        riskScore,
-        factors,
-        riskLevel: Math.max(0, Math.min(100, (riskScore / 3) * 100))
+        reasons,
+        trendRatio: Math.round(trendRatio * 100) / 100,
+        observations: recentCount
     };
 };
 
-// Generate mock alerts for demo
+/**
+ * Full GBIF classification
+ */
+export const gbifClassify = async (species, lat, lon, radius = 25) => {
+    const [recentRecords, historicalAvg] = await Promise.all([
+        fetchGBIFOccurrences(species, lat, lon, radius),
+        getHistoricalAverage(species, lat, lon, radius)
+    ]);
+    
+    const recentCount = recentRecords.length;
+    const endangered = isEndangered(species);
+    const humanProximity = calculateHumanProximity(lat, lon);
+    
+    return calculateGBIFRiskScore(recentCount, historicalAvg, endangered, humanProximity);
+};
+
+// ⚠️ LEGACY: Still generate demo alerts for showcase (when GBIF fails)
 export const generateMockAlerts = () => {
     return [
         {
-            type: 'Wildfire',
-            level: 'Critical',
-            icon: 'local_fire_department',
-            title: 'Active Wildfire Expansion',
-            description: 'Rapid spread detected near conservation zone. Immediate intervention required.',
-            time: '2m ago',
-            location: 'Amazon Basin, Brazil',
-            confidence: '98%',
-            source: 'NASA FIRMS',
-            rangerCount: 14
-        },
-        {
-            type: 'Logging',
+            type: 'Species Activity',
             level: 'At Risk',
-            icon: 'agriculture',
-            title: 'Illegal Logging Activity',
-            description: 'Heavy machinery acoustic signatures detected.',
-            time: '45m ago',
-            location: 'Boreal, Canada',
-            source: 'Satellite · 09:14 UTC'
+            icon: 'eco',
+            title: 'Tiger Sighting Increase',
+            description: 'Unusual increase in tiger sightings in the area.',
+            time: '2m ago',
+            location: 'Central India',
+            confidence: '85%',
+            source: 'GBIF Analysis',
+            observations: 12
         },
         {
-            type: 'Species',
+            type: 'Species Activity',
             level: 'Positive',
             icon: 'eco',
-            title: 'Snow Leopard Sightings',
-            description: 'Multiple individuals recorded on trail cameras in protected sector.',
+            title: 'Snow Leopard Confirmed',
+            description: 'Multiple individuals recorded on trail cameras.',
             time: '3h ago',
             location: 'Himalayas, Nepal',
             category: 'Rare Species',
-            verified: true
+            verified: true,
+            source: 'GBIF Verified'
         }
     ];
 };
@@ -150,7 +198,7 @@ export const saveAlertToDatabase = async (alertData) => {
         fs.writeFileSync(ALERTS_FILE, JSON.stringify(alerts, null, 2));
         return newAlert;
     } catch (error) {
-        console.error('Error saving alert to file storage:', error.message);
+        console.error('Error saving alert:', error.message);
         return null;
     }
 };
@@ -161,41 +209,45 @@ export const fetchAlertsFromDatabase = async () => {
         const alerts = JSON.parse(fs.readFileSync(ALERTS_FILE, 'utf8'));
         return alerts;
     } catch (error) {
-        console.error('Error fetching alerts from file storage:', error.message);
+        console.error('Error fetching alerts:', error.message);
         return [];
     }
 };
 
-// Process and generate new alerts
-export const processAlerts = async () => {
-    const fireData = await fetchFireData('africa', 1);
+// Process and generate GBIF alerts
+export const processGBIFAlerts = async (species, lat, lon) => {
+    const riskData = await gbifClassify(species, lat, lon);
     
-    const riskAnalysis = calculateRiskLevel(fireData, null, null);
-    
-    if (riskAnalysis.riskScore >= 2) {
+    if (riskData.score >= 1.0) {
         const alert = {
-            type: 'Wildfire',
-            level: riskAnalysis.level,
-            icon: 'local_fire_department',
-            title: 'Wildfire Alert',
-            description: `${riskAnalysis.factors.join('. ')}. Risk Score: ${riskAnalysis.riskScore}`,
+            type: 'Species Activity',
+            level: riskData.level,
+            icon: 'eco',
+            title: `${species} Activity Alert`,
+            description: riskData.reasons.join('. '),
             time: 'Just now',
-            location: 'Detection Zone',
-            confidence: `${Math.round(riskAnalysis.riskLevel)}%`,
-            source: 'NASA FIRMS'
+            location: `${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`,
+            confidence: `${Math.min(riskData.score * 30, 99)}%`,
+            source: 'GBIF ML Analysis',
+            observations: riskData.observations,
+            trendRatio: riskData.trendRatio
         };
         
         await saveAlertToDatabase(alert);
     }
     
-    return riskAnalysis;
+    return riskData;
 };
 
 export default {
-    fetchFireData,
-    calculateRiskLevel,
+    fetchGBIFOccurrences,
+    getHistoricalAverage,
+    isEndangered,
+    calculateHumanProximity,
+    calculateGBIFRiskScore,
+    gbifClassify,
     generateMockAlerts,
     saveAlertToDatabase,
     fetchAlertsFromDatabase,
-    processAlerts
+    processGBIFAlerts
 };

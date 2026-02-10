@@ -16,8 +16,8 @@ const Dashboard = () => {
             {/* Header */}
             <div className="flex items-center pt-6 justify-between">
                 <div className="flex-1 flex flex-col items-center">
-                    <h2 className="frosted-text text-lg font-bold tracking-tight">Dashboard</h2>
-                    <span className="text-[9px] uppercase tracking-[0.2em] text-neon-green font-bold">Bio Sentinel</span>
+                    <h2 className="frosted-text text-lg font-bold tracking-tight">Kaya</h2>
+                    <span className="text-[9px] uppercase tracking-[0.2em] text-neon-green font-bold">Dashboard</span>
                 </div>
             </div>
             

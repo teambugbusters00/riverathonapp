@@ -201,7 +201,12 @@ const Map = () => {
             </div>
 
             {/* HEADER & SEARCH & SLIDER */}
-            <div className="absolute top-0 left-0 w-full z-20 p-4 pt-14 flex flex-col gap-4">
+            <div className="absolute top-0 left-0 w-full z-20 p-4 pt-10 flex flex-col gap-4">
+                {/* Kaya Branding */}
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="frosted-text text-xl font-bold tracking-tight text-neon-green">Kaya</span>
+                    <span className="text-[9px] uppercase tracking-[0.2em] text-white/40 font-bold">Map Scanner</span>
+                </div>
                 {/* Search Bar */}
                 <div className="flex items-center gap-3">
                     <div className="flex-1 glass-panel h-12 rounded-2xl flex items-center px-4 relative transition-all duration-300 focus-within:bg-white/10">

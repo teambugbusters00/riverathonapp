@@ -13,6 +13,7 @@ import ProfileSetup from './pages/ProfileSetup';
 import StudentDashboard from './pages/StudentDashboard';
 import ResearcherDashboard from './pages/ResearcherDashboard';
 import CommunityDashboard from './pages/CommunityDashboard';
+import Satellite from './pages/Satellite';
 
 // Protected Route component
 const ProtectedRoute = ({ children, requireAuth = true }) => {
@@ -114,6 +115,7 @@ function App() {
                     <Route path="/species/:id" element={<SpeciesDetail />} />
                     <Route path="/alert" element={<Alert />} />
                     <Route path="/report" element={<Report />} />
+                    <Route path="/satellite" element={<Satellite />} />
                     <Route path="/team" element={<Team />} />
 
                     {/* Auth Routes */}

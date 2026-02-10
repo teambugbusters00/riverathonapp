@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import Nav from '../components/Nav';
 
-// --- Leaflet Setup ---
+// API URL - Use main API URL for auth, separate for GBIF
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const GBIF_API_URL = import.meta.env.VITE_GBIF_API_URL || 'http://localhost:8000';
 
 // Fix for default Leaflet marker icons in React
 delete L.Icon.Default.prototype._getIconUrl;
@@ -38,6 +40,8 @@ const Report = () => {
     const [obsType, setObsType] = useState('Species');
     const [speciesName, setSpeciesName] = useState('');
     const [expertVerify, setExpertVerify] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [riskResult, setRiskResult] = useState(null);
     
     // Map/Location State
     const [location, setLocation] = useState({ lat: 0, lon: 0 });
@@ -45,7 +49,12 @@ const Report = () => {
     const [gpsLoading, setGpsLoading] = useState(true);
     const [gpsError, setGpsError] = useState(null);
 
-    // 1. Get User Coordinates
+    // File Upload State
+    const [uploadedImages, setUploadedImages] = useState([]);
+    const fileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+
+    // Get User Coordinates
     const getLocation = () => {
         setGpsLoading(true);
         setGpsError(null);
@@ -63,7 +72,7 @@ const Report = () => {
                 setLocation({ lat: latitude, lon: longitude });
                 fetchAddress(latitude, longitude);
             },
-            (err) => {
+            () => {
                 setGpsError("GPS Signal Lost");
                 setGpsLoading(false);
                 setAddress("Unable to retrieve location");
@@ -72,7 +81,7 @@ const Report = () => {
         );
     };
 
-    // 2. Fetch Address from Nominatim (OpenStreetMap)
+    // Fetch Address from Nominatim
     const fetchAddress = async (lat, lon) => {
         try {
             const response = await fetch(
@@ -89,7 +98,7 @@ const Report = () => {
             }
             
             setAddress(displayAddress);
-        } catch (err) {
+        } catch {
             setAddress(`${lat.toFixed(4)}° N, ${lon.toFixed(4)}° E`);
         } finally {
             setGpsLoading(false);
@@ -101,18 +110,95 @@ const Report = () => {
         getLocation();
     }, []);
 
+    // Handle file selection
+    const handleFileChange = (e) => {
+        const newFiles = Array.from(e.target.files);
+        newFiles.forEach(file => {
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    setUploadedImages(prev => [...prev, {
+                        id: Date.now() + Math.random(),
+                        name: file.name,
+                        size: file.size,
+                        data: event.target.result
+                    }]);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    };
+
+    // Remove image
+    const removeImage = (id) => {
+        setUploadedImages(prev => prev.filter(img => img.id !== id));
+    };
+
+    // Open file picker
+    const openFilePicker = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    // Open camera
+    const openCamera = () => {
+        if (cameraInputRef.current) {
+            cameraInputRef.current.click();
+        }
+    };
+
+    // Call GBIF ML API
+    const classifyWithGBIF = async (species, lat, lon) => {
+        try {
+            const response = await fetch(`${GBIF_API_URL}/gbif/classify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ species, lat, lon, radius: 25 })
+            });
+            
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (error) {
+            console.error('GBIF classification error:', error);
+        }
+        return null;
+    };
+
     // Handle Form Submission
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
+        setSubmitting(true);
+        
+        let riskData = null;
+        if (speciesName && location.lat !== 0) {
+            riskData = await classifyWithGBIF(speciesName, location.lat, location.lon);
+        }
+        
         const reportData = {
             type: obsType,
             species: speciesName,
             verificationRequested: expertVerify,
             location: location,
             address: address,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            images: uploadedImages,
+            riskAssessment: riskData
         };
+        
         console.log("Submitting Report Payload:", reportData);
-        alert(`Report Submitted for ${obsType}: ${speciesName || 'Unidentified'}`);
+        setRiskResult(riskData);
+        setSubmitting(false);
+    };
+
+    // Get risk color
+    const getRiskColor = (level) => {
+        switch(level) {
+            case 'Critical': return 'bg-red-500/20 border-red-500/50 text-red-400';
+            case 'High': return 'bg-orange-500/20 border-orange-500/50 text-orange-400';
+            case 'At Risk': return 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400';
+            default: return 'bg-green-500/20 border-green-500/50 text-green-400';
+        }
     };
 
     return (
@@ -122,8 +208,8 @@ const Report = () => {
                 {/* Header */}
                 <div className="flex items-center p-6 justify-between">
                     <div className="flex-1 flex flex-col items-center">
-                        <h2 className="frosted-text text-lg font-bold tracking-tight">Report Observation</h2>
-                        <span className="text-[9px] uppercase tracking-[0.2em] text-neon-green font-bold">Bio Sentinel</span>
+                        <h2 className="frosted-text text-lg font-bold tracking-tight">Kaya</h2>
+                        <span className="text-[9px] uppercase tracking-[0.2em] text-neon-green font-bold">Report Observation</span>
                     </div>
                 </div>
 
@@ -145,8 +231,8 @@ const Report = () => {
                                     />
                                     <div className={`h-full flex items-center justify-center rounded-[10px] text-xs font-bold transition-all ${
                                         obsType === type 
-                                        ? `bg-white/10 ${type === 'Threat' ? 'text-hard-pink' : 'text-neon-green'} shadow-sm` 
-                                        : 'text-white/50'
+                                            ? `bg-white/10 ${type === 'Threat' ? 'text-hard-pink' : 'text-neon-green'} shadow-sm` 
+                                            : 'text-white/50'
                                     }`}>
                                         {type === 'Sacred Grove' ? 'Grove' : type}
                                     </div>
@@ -158,13 +244,72 @@ const Report = () => {
                     {/* Evidence Upload */}
                     <section>
                         <h3 className="text-white/40 text-[11px] font-bold uppercase tracking-[0.15em] mb-3 ml-1">Evidence</h3>
-                        <div className="glass-panel border-dashed border-white/20 p-8 flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 transition-colors cursor-pointer group rounded-3xl">
+                        
+                        {/* Hidden file inputs */}
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                        />
+                        <input
+                            type="file"
+                            ref={cameraInputRef}
+                            onChange={handleFileChange}
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                        />
+                        
+                        {/* Upload Area */}
+                        <div 
+                            onClick={openFilePicker}
+                            className="glass-panel border-dashed border-white/20 p-8 flex flex-col items-center justify-center bg-white/5 hover:bg-white/10 transition-colors cursor-pointer group rounded-3xl"
+                        >
                             <div className="w-14 h-14 bg-neon-green/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(57,255,20,0.1)]">
                                 <span className="material-symbols-outlined text-neon-green text-3xl">add_a_photo</span>
                             </div>
                             <p className="frosted-text font-bold text-sm">Upload Evidence</p>
                             <p className="text-white/30 text-[10px] mt-1 font-medium tracking-wide">High-resolution preferred</p>
+                            <div className="flex gap-4 mt-3">
+                                <button 
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); openCamera(); }}
+                                    className="text-[10px] text-neon-green hover:text-white transition-colors flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">photo_camera</span>
+                                    Camera
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); openFilePicker(); }}
+                                    className="text-[10px] text-neon-green hover:text-white transition-colors flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">folder</span>
+                                    Gallery
+                                </button>
+                            </div>
                         </div>
+                        
+                        {/* Image Previews */}
+                        {uploadedImages.length > 0 && (
+                            <div className="flex gap-2 mt-3 flex-wrap">
+                                {uploadedImages.map((img) => (
+                                    <div key={img.id} className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/20">
+                                        <img src={img.data} alt={img.name} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImage(img.id)}
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px]"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </section>
 
                     {/* Identification */}
@@ -201,7 +346,7 @@ const Report = () => {
                         </div>
                     </section>
 
-                    {/* Location (OpenStreetMap + Nominatim) */}
+                    {/* Location */}
                     <section>
                         <div className="flex items-center justify-between mb-3 px-1">
                             <h3 className="text-white/40 text-[11px] font-bold uppercase tracking-[0.15em]">Location</h3>
@@ -213,7 +358,7 @@ const Report = () => {
                             </div>
                         </div>
 
-                        {/* Leaflet Map Container */}
+                        {/* Map */}
                         <div className="relative w-full h-44 rounded-3xl overflow-hidden border border-white/10 glass-panel z-0">
                             {location.lat !== 0 ? (
                                 <MapContainer 
@@ -224,11 +369,7 @@ const Report = () => {
                                     dragging={false} 
                                     attributionControl={false}
                                 >
-                                    {/* Dark Mode Map Tiles */}
-                                    <TileLayer
-                                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                                        attribution='&copy; OpenStreetMap'
-                                    />
+                                    <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
                                     <RecenterMap lat={location.lat} lon={location.lon} />
                                     <Marker position={[location.lat, location.lon]} icon={neonIcon} />
                                 </MapContainer>
@@ -276,14 +417,39 @@ const Report = () => {
                     </div>
                 </form>
 
-                {/* Submit Button */}
-                <div className=" max-w-md mx-auto p-6 z-70 relative">
+                {/* Submit Button & Risk Result */}
+                <div className="max-w-md mx-auto p-6 z-70 relative">
                     <div className="absolute inset-0 bg-linear-to-t from-bg-gradient-end via-bg-gradient-end/90 to-transparent pointer-events-none -mt-10"></div>
+                    
+                    {riskResult && (
+                        <div className={`mb-4 p-4 rounded-2xl border ${getRiskColor(riskResult.riskLevel)}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold uppercase tracking-wider">GBIF Risk Assessment</span>
+                                <span className="text-sm font-bold">{riskResult.riskLevel}</span>
+                            </div>
+                            <div className="text-xs text-white/80 space-y-1">
+                                <p>Score: {riskResult.riskScore}</p>
+                                <p>Observations: {riskResult.observations} ({riskResult.trendRatio?.toFixed(1) || 1}x avg)</p>
+                                {riskResult.reason && riskResult.reason.map((r, i) => (
+                                    <p key={i}>• {r}</p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
                     <button 
                         onClick={handleSubmit}
-                        className="relative w-full glass-panel bg-neon-green hover:bg-neon-green/90 text-black font-black h-16 flex items-center justify-center neon-glow transition-all active:scale-95 uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_20px_rgba(57,255,20,0.4)]"
+                        disabled={submitting}
+                        className="relative w-full glass-panel bg-neon-green hover:bg-neon-green/90 text-black font-black h-16 flex items-center justify-center neon-glow transition-all active:scale-95 uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_20px_rgba(57,255,20,0.4)] disabled:opacity-50"
                     >
-                        Submit Observation
+                        {submitting ? (
+                            <>
+                                <span className="material-symbols-outlined animate-spin mr-2">sync</span>
+                                ANALYZING...
+                            </>
+                        ) : (
+                            <span>Submit Observation</span>
+                        )}
                     </button>
                 </div>
             </div>

@@ -43,7 +43,7 @@ export const askGemini = async (req, res) => {
         const speciesContextStr = JSON.stringify(chatSession.speciesContext, null, 2);
         
         const systemInstruction = `
-        ROLE: You are Kara, an experienced biodiversity expert.
+        ROLE: You are Kaya, an experienced biodiversity expert.
         
         CONTEXT DATA (Use this ONLY to identify the species we are discussing): 
         ${speciesContextStr}

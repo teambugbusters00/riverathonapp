@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import ChatInterface from './ChatInterface';
 
 const NavItem = ({ to, icon, label }) => (
@@ -18,11 +19,10 @@ const NavItem = ({ to, icon, label }) => (
 );
 
 const Nav = ({species}) => {
+  const { user, logOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(true);
-
-  // Logic: Only allow Chat on specific routes (e.g., Species Details)
-  const canShowChat = location.pathname.startsWith('/species');
 
   // Auto-close chat if user navigates away
   useEffect(() => {
@@ -31,6 +31,12 @@ const Nav = ({species}) => {
 
   // Handler passed to ChatInterface to allow it to close itself
   const handleCloseChat = () => setIsChatOpen(false);
+
+  // Handle logout
+  const handleLogout = () => {
+    logOut();
+    navigate('/');
+  };
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] flex flex-col justify-end pb-8">
@@ -45,8 +51,8 @@ const Nav = ({species}) => {
           )}
         </div>
 
-        {/* --- 2. Ask Kaya Button (Visible only when closed AND allowed) --- */}
-        {!isChatOpen && canShowChat && (
+        {/* --- 2. Ask Kaya Button (Visible on all pages) --- */}
+        {!isChatOpen && (
           <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-20 animate-in fade-in slide-in-from-bottom-2">
             <button
               onClick={() => setIsChatOpen(true)}
@@ -89,8 +95,20 @@ const Nav = ({species}) => {
           </div>
 
           <NavItem to="/alert" icon="notifications" label="Alerts" />
+          <NavItem to="/satellite" icon="satellite_alt" label="Sat" />
           <NavItem to="/team" icon="groups" label="Team" />
-          <NavItem to="/login" icon="login" label="Login" />
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className="flex flex-col items-center justify-center w-12 h-12 transition-all duration-300 text-white/40 hover:text-accent-pink hover:scale-110"
+              title="Logout"
+            >
+              <span className="material-symbols-outlined mb-0.5 text-2xl">logout</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest">Logout</span>
+            </button>
+          ) : (
+            <NavItem to="/login" icon="login" label="Login" />
+          )}
           <NavItem to="/dashboard" icon="dashboard" label="Dash" />
 
         </div>

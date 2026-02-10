@@ -1,6 +1,7 @@
 // MongoDB-based authentication API
 
-const API_URL = 'http://localhost:3000/api';
+// Use environment variable or fallback to localhost
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // User Roles
 export const ROLES = {

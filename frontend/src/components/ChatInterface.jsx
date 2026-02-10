@@ -30,7 +30,7 @@ const ChatBubble = ({ text, sender, timestamp }) => {
         </div>
       </div>
       <span className="text-[9px] font-mono text-white/30 mt-1 uppercase tracking-wider">
-        {sender === 'model' ? 'BIO SENTINEL' : 'YOU'} • {timestamp}
+        {sender === 'model' ? 'KAYA' : 'YOU'} • {timestamp}
       </span>
     </div>
   );
@@ -133,7 +133,7 @@ const ChatInterface = ({ onClose, species }) => {
             <div className={`w-2.5 h-2.5 rounded-full ${isTyping ? 'bg-yellow-400' : 'bg-primary-green'} animate-pulse shadow-[0_0_10px_currentColor]`}></div>
           </div>
           <div>
-            <h2 className="text-xs font-bold text-white tracking-[0.2em] uppercase leading-none mb-0.5">BioSentinel AI</h2>
+            <h2 className="text-xs font-bold text-white tracking-[0.2em] uppercase leading-none mb-0.5">Kaya AI</h2>
             <p className="text-[8px] font-mono text-primary/80 tracking-wide truncate max-w-[150px]">
               ID: {sessionRef.current?.slice(-6).toUpperCase()}
             </p>

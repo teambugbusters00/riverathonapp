@@ -1,8 +1,11 @@
 import '../css/landing.css'
 import Nav from '../components/Nav'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 const Landing = () => {
+  const { isLoggedIn } = useAuth();
+
   return (
       <div className="overflow-x-hidden">
         <main className="px-4 pb-32">
@@ -18,7 +21,7 @@ const Landing = () => {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-accent-pink">Bio Sentinel Live</span>
                 </div>
                 <h1 className="text-4xl font-extrabold text-white leading-[1.1] tracking-tight">
-                  Detect, Protect <br />&amp; Preserve.
+                  <span className="text-primary-green">Kaya</span> <br /> Detect, Protect & Preserve.
                 </h1>
                 <p className="text-white/70 text-base leading-relaxed max-w-xs">
                   Government-grade AI monitoring for planetary biodiversity and ecological shifts.
@@ -30,6 +33,11 @@ const Landing = () => {
                   <Link to='/report' className="glass-button-secondary h-14 w-full font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
                     Report Sighting <span className="material-symbols-outlined text-accent-pink">add_a_photo</span>
                   </Link>
+                  {isLoggedIn() && (
+                    <Link to='/dashboard' className="glass-button-dashboard h-14 w-full font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+                      Go to Dashboard <span className="material-symbols-outlined">dashboard</span>
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>

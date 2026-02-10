@@ -1,7 +1,47 @@
 import express from 'express';
 import alertService from '../services/alertService.js';
+import gbifService from '../../gbif_alert_service.js';
 
 const router = express.Router();
+
+// GBIF Classification Endpoint (matches Python API)
+router.post('/gbif/classify', async (req, res) => {
+    try {
+        const { species, lat, lon, radius } = req.body;
+        
+        if (!species || !lat || !lon) {
+            return res.status(400).json({ 
+                error: 'Missing required fields: species, lat, lon' 
+            });
+        }
+        
+        const result = await gbifService.gbifClassify(species, lat, lon, radius || 25);
+        
+        res.json(result);
+    } catch (error) {
+        console.error('GBIF classification error:', error);
+        res.status(500).json({ error: 'Classification failed' });
+    }
+});
+
+// GBIF Species Search
+router.get('/gbif/search', async (req, res) => {
+    try {
+        const { q, limit } = req.query;
+        if (!q) {
+            return res.status(400).json({ error: 'Missing query parameter: q' });
+        }
+        
+        const response = await fetch(
+            `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(q)}&limit=${limit || 10}`
+        );
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('GBIF search error:', error);
+        res.status(500).json({ error: 'Search failed' });
+    }
+});
 
 // Get all alerts (from Appwrite or mock)
 router.get('/', async (req, res) => {
