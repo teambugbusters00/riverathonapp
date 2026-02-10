@@ -1,0 +1,39 @@
+services:
+  # Node.js Backend
+  - name: biosentinal-api
+    runtime: node
+    region: oregon
+    repo: https://github.com/teambugbusters00/riverathonapp.git
+    branch: main
+    directory: bio-sentinal-main/ai
+    buildCommand: npm install
+    startCommand: node app.js
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: MONGODB_URI
+        fromDatabase:
+          name: biosentinal-mongodb
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: NASA_FIRMS_API_KEY
+        sync: false
+
+  # Python FastAPI Service (GBIF + Satellite)
+  - name: biosentinal-ml-api
+    runtime: python
+    region: oregon
+    repo: https://github.com/teambugbusters00/riverathonapp.git
+    branch: main
+    directory: bio-sentinal-main/ai
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn gbif_ml_api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: "8000"
+
+databases:
+  - name: biosentinal-mongodb
+    plan: free
+    region: oregon
